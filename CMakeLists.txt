@@ -3,5 +3,5 @@ project(cmput379Assignment2)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
 
-set(SOURCE_FILES server_f.c)
-add_executable(server_f ${SOURCE_FILES})
+set(SOURCE_FILES forked_handler.h forked_handler.c request_handler.h request_handler.c)
+add_executable(server_f server_f.c ${SOURCE_FILES})
