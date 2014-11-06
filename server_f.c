@@ -8,19 +8,24 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/sendfile.h>
+#include <time.h>
 
 static const unsigned BUFSIZE = 512;
 
 
+size_t formatedDate(char *dateBuf, size_t size) {
+    time_t timer = time(NULL);
+    return strftime(dateBuf, size, "%a %d %b %Y %H:%M:%S %Z", gmtime(&timer));
+}
 
 int httpHeader(char *header, unsigned len) {
     int pos = 0;
+    char date[BUFSIZE];
+    formatedDate(date, BUFSIZE);
     pos += sprintf(header + pos, "HTTP/1.1 200 OK\n");
-    pos += sprintf(header + pos, "Date: Mon 21 Jan 2008 18:06:16 GMT\n");
+    pos += sprintf(header + pos, "Date: %s\n", date);
     pos += sprintf(header + pos, "Content-Type: text/html\n");
-    pos += sprintf(header + pos, "Content-Length: %l\n\n", len);
-    printf(header);
-    fflush(stdout);
+    pos += sprintf(header + pos, "Content-Length: %u\n\n", len);
     return pos;
 }
 
@@ -154,7 +159,7 @@ int main(int argc, char **argv) {
         char header[BUFSIZE];
 
         int len = httpHeader(header, stat_buf.st_size);
-
+        printf(header);
         n = write(sendfd, header, len);
 
         /* copy file using sendfile */
