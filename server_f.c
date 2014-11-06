@@ -12,12 +12,12 @@
 #include <arpa/inet.h>
 #include <signal.h>
 
-static const unsigned BUFSIZE = 512;
+#define BUFSIZE 512
 
 typedef struct {
     int sendfd;
-    const char* clientIP;
-    const char* message;
+    char clientIP[INET_ADDRSTRLEN];
+    char message[BUFSIZE];
     const char* body;
     const char* requestLine;
     const char* logFileName;
@@ -47,7 +47,7 @@ void logger(Response r) {
     char date[BUFSIZE];
     formatedDate(date, BUFSIZE);
     if ((fd = fopen(r.logFileName, "a")) >= 0) {
-        int ret = fprintf(fd, "%s\t%s\t%s\t%s\n", date, r.clientIP, r.requestLine, r.message);
+        fprintf(fd, "%s\t%s\t%s\t%s\n", date, r.clientIP, r.requestLine, r.message);
         fclose(fd);
     } else {
         perror("Can't log!!");
@@ -63,7 +63,7 @@ void sendTextBody(Response r) {
 
 void sendNotFound(Response r) {
     perror("Not found!!!");
-    r.message = "404 Not Found";
+    strncpy(r.message, "404 Not Found", sizeof(r.message));
     r.body = "<html><body>\n"
              "<h2>Document not found</h2>\n"
              "You asked for a document that doesn't exist. That is so sad.\n"
@@ -72,7 +72,7 @@ void sendNotFound(Response r) {
 }
 
 void sendBadRequest(Response r) {
-    r.message = "400 Bad Request";
+    strncpy(r.message, "400 Bad Request", sizeof(r.message));
     r.body = "<html><body>\n"
             "<h2>Malformed Request</h2>\n"
             "Your browser sent a request I could not understand.\n"
@@ -81,7 +81,7 @@ void sendBadRequest(Response r) {
 }
 
 void sendForbidden(Response r) {
-    r.message = "403 Forbidden";
+    strncpy(r.message, "403 Forbidden", sizeof(r.message));
     r.body = "<html><body>\n"
             "<h2>Permission Denied</h2>\n"
             "You asked for a document you are not permitted to see. It sucks to be you.\n"
@@ -90,7 +90,7 @@ void sendForbidden(Response r) {
 }
 
 void sendServerError(Response r) {
-    r.message = "500 Internal Server Error";
+    strncpy(r.message, "500 Internal Server Error", sizeof(r.message));
     r.body = "<html><body>\n"
             "<h2>Oops. That Didn't work</h2>\n"
             "I had some sort of problem dealing with your request. Sorry, I'm lame.\n"
@@ -120,10 +120,8 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
     ssize_t n = read(sendfd, buffer, BUFSIZE);
     Response response;
 
-    char clientIP[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &clientAddr.sin_addr, clientIP, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &clientAddr.sin_addr, response.clientIP, INET_ADDRSTRLEN);
 
-    response.clientIP = clientIP;
     response.sendfd = sendfd;
     response.logFileName = logFileName;
     response.requestLine = "<malformed request>";
@@ -158,26 +156,26 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
     }
 //        printf(buffer);
     char reqLine[n + 1];
-    strncpy(reqLine, buffer, n);
+    strncpy(reqLine, buffer, (size_t) n);
     reqLine[n] = 0;
 
     response.requestLine = reqLine;
 
-    unsigned fileNameStart = 5;
+    size_t fileNameStart = 5;
     if (strncmp(buffer, "GET /", fileNameStart) != 0 && strncmp(buffer, "get /", fileNameStart) != 0) {
-        printf("Invalid request, not a GET %d\n", n);
+        printf("Invalid request, not a GET.\n");
         return sendBadRequest(response);
     }
 
     // check for HTTP/1.1 at the end
-    ssize_t fileNameEnd = n - 9;
+    size_t fileNameEnd = (size_t) (n - 9);
     if (strncmp(&buffer[fileNameEnd], " HTTP/1.1", 9) != 0) {
-        printf("Invalid request, not HTTP %d\n", n);
+        printf("Invalid request, not HTTP/1.1.");
         return sendBadRequest(response);
     }
 
     // now we know the line is formatted like "GET /(.*) HTTP/1.1"
-    ssize_t fnLen = fileNameEnd - fileNameStart;
+    size_t fnLen = fileNameEnd - fileNameStart;
     char fileName[fnLen + 1];
     strncpy(fileName, &buffer[fileNameStart], fnLen);
     fileName[fnLen] = 0;
@@ -190,20 +188,18 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
         fstat(fd, &stat_buf);
 
 //        printf("%ld\n", stat_buf.st_size);
-        sendHeader(sendfd, "200 OK", stat_buf.st_size);
+        sendHeader(sendfd, "200 OK", (size_t) stat_buf.st_size);
 
         /* copy file using sendfile */
         off_t offset = 0;
-        ssize_t rc = sendfile(sendfd, fd, &offset, stat_buf.st_size);
+        ssize_t rc = sendfile(sendfd, fd, &offset, (size_t) stat_buf.st_size);
         if (rc == -1) {
             close(fd);
             return sendServerError(response);
         } else {
             printf("Success!!!\n");
-            char message[BUFSIZE];
-            sprintf(message, "200 OK %li/%li", rc, stat_buf.st_size);
-            printf(message);
-            response.message = message;
+            sprintf(response.message, "200 OK %li/%li", rc, stat_buf.st_size);
+            printf(response.message);
             logger(response);
         }
         close(fd);
@@ -217,8 +213,7 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
 }
 
 int main(int argc, char **argv) {
-    unsigned i;
-    int fd, port, pid, listenfd, sendfd, optval;
+    int fd, port, listenfd, sendfd, optval;
     socklen_t length;
     static struct sockaddr_in clientAddr;
     static struct sockaddr_in serverAddr;
@@ -261,7 +256,7 @@ int main(int argc, char **argv) {
 
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serverAddr.sin_port = htons(port);
+    serverAddr.sin_port = htons((uint16_t) port);
 
     if (bind(listenfd, (struct sockaddr *) &serverAddr, sizeof(serverAddr)) < 0) {
         perror("Error trying to bind to socket");
@@ -290,6 +285,4 @@ int main(int argc, char **argv) {
         sleep(1);
         close(sendfd);
     }
-
-    return 0;
 }
