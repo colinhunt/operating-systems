@@ -32,6 +32,94 @@ void sendHeader(int sendfd, char message[], size_t lenBody) {
     write(sendfd, header, lenHeader);
 }
 
+void handleRequest(int sendfd) {
+    int i;
+    char buffer[BUFSIZE+1];
+    bzero(buffer,BUFSIZE+1);
+    unsigned n = read(sendfd, buffer, BUFSIZE);
+    if (n <= 0)
+        {
+            perror("ERROR reading from socket");
+        }
+
+    if (n < BUFSIZE) {
+            buffer[n]=0;
+        } else {
+            buffer[0]=0;
+        }
+
+//        printf(buffer);
+
+//        printf(buffer);
+    if (buffer[n-1] != '\n')
+            printf("Invalid request %d\n", n);
+//        printf("blah\n");
+//        printf(buffer);
+// parse request, ensure valid, get filename
+
+    // terminate after the first newline
+    for (i = 0; i < n; i++) {
+            if (buffer[i] == '\n') {
+                buffer[i] = 0;
+                n = i;
+                if (buffer[i - 1] == '\r') {
+                    buffer[i - 1] = 0;
+                    n = i - 1;
+                }
+                break;
+            }
+        }
+//        printf(buffer);
+
+    unsigned fileNameStart = 5;
+    if (strncmp(buffer, "GET /", fileNameStart) != 0 && strncmp(buffer, "get /", fileNameStart) != 0) {
+            printf("Invalid request, not a GET %d\n", n);
+        }
+
+    // check for HTTP/1.1 at the end
+    unsigned fileNameEnd = n - 9;
+    if (strncmp(&buffer[fileNameEnd], " HTTP/1.1", 9) != 0) {
+            printf("Invalid request, not HTTP %d\n", n);
+            printf(&buffer[fileNameEnd]);
+        }
+
+    // now we know the line is formatted like "GET /(.*) HTTP/1.1"
+    buffer[fileNameEnd] = 0;
+//        printf(&buffer[fileNameStart]);
+    char* fileName = &buffer[fileNameStart];
+
+    printf(fileName);
+
+    int fd;
+    if ((fd = open(fileName, O_RDONLY)) != -1) {
+            struct stat stat_buf;
+            fstat(fd, &stat_buf);
+
+//        printf("%ld\n", stat_buf.st_size);
+            sendHeader(sendfd, "200 OK", stat_buf.st_size);
+
+            /* copy file using sendfile */
+            off_t offset = 0;
+            int rc = sendfile(sendfd, fd, &offset, stat_buf.st_size);
+            if (rc == -1) {
+                perror("Error trying to send file");
+            } else {
+                printf("Success!!!\n");
+            }
+
+            close(fd);
+        } else {
+            char notFoundBody[] = "<html><body>\n"
+                    "<h2>Document not found</h2>\n"
+                    "You asked for a document that doesn't exist. That is so sad.\n"
+                    "</body></html>\n";
+            perror("Not found!!!");
+            size_t lenBody = strlen(notFoundBody);
+            sendHeader(sendfd, "400 Bad Request", lenBody);
+            write(sendfd, notFoundBody, lenBody);
+        }
+}
+
 int main(int argc, char **argv) {
     unsigned i;
     int fd, port, pid, listenfd, sendfd, optval;
@@ -87,7 +175,6 @@ int main(int argc, char **argv) {
     }
 
     while (1) {
-        char buffer[BUFSIZE+1];
         length = sizeof(clientAddr);
         sendfd = accept(listenfd, (struct sockaddr *) &clientAddr, &length);
         if (sendfd < 0) {
@@ -95,92 +182,12 @@ int main(int argc, char **argv) {
             exit(1);
         }
 
-        bzero(buffer,BUFSIZE+1);
-        unsigned n = read(sendfd, buffer, BUFSIZE);
-        if (n <= 0)
-        {
-            perror("ERROR reading from socket");
-        }
+        handleRequest(sendfd);
 
-        if (n < BUFSIZE) {
-            buffer[n]=0;
-        } else {
-            buffer[0]=0;
-        }
-
-//        printf(buffer);
-
-//        printf(buffer);
-        if (buffer[n-1] != '\n')
-            printf("Invalid request %d\n", n);
-//        printf("blah\n");
-//        printf(buffer);
-// parse request, ensure valid, get filename
-
-        // terminate after the first newline
-        for (i = 0; i < n; i++) {
-            if (buffer[i] == '\n') {
-                buffer[i] = 0;
-                n = i;
-                if (buffer[i - 1] == '\r') {
-                    buffer[i - 1] = 0;
-                    n = i - 1;
-                }
-                break;
-            }
-        }
-//        printf(buffer);
-
-        unsigned fileNameStart = 5;
-        if (strncmp(buffer, "GET /", fileNameStart) != 0 && strncmp(buffer, "get /", fileNameStart) != 0) {
-            printf("Invalid request, not a GET %d\n", n);
-        }
-
-        // check for HTTP/1.1 at the end
-        unsigned fileNameEnd = n - 9;
-        if (strncmp(&buffer[fileNameEnd], " HTTP/1.1", 9) != 0) {
-            printf("Invalid request, not HTTP %d\n", n);
-            printf(&buffer[fileNameEnd]);
-        }
-
-        // now we know the line is formatted like "GET /(.*) HTTP/1.1"
-        buffer[fileNameEnd] = 0;
-//        printf(&buffer[fileNameStart]);
-        char* fileName = &buffer[fileNameStart];
-
-        printf(fileName);
-
-        if ((fd = open(fileName, O_RDONLY)) != -1) {
-            struct stat stat_buf;
-            fstat(fd, &stat_buf);
-
-//        printf("%ld\n", stat_buf.st_size);
-            sendHeader(sendfd, "200 OK", stat_buf.st_size);
-
-            /* copy file using sendfile */
-            off_t offset = 0;
-            int rc = sendfile(sendfd, fd, &offset, stat_buf.st_size);
-            if (rc == -1) {
-                perror("Error trying to send file");
-            } else {
-                printf("Success!!!\n");
-            }
-
-        } else {
-            char notFoundBody[] = "<html><body>\n"
-                    "<h2>Document not found</h2>\n"
-                    "You asked for a document that doesn't exist. That is so sad.\n"
-                    "</body></html>";
-            perror("Not found!!!");
-            size_t lenBody = strlen(notFoundBody);
-            sendHeader(sendfd, "400 Bad Request", lenBody);
-            write(sendfd, notFoundBody, lenBody);
-        }
-//        printf("%d:", n);
+        //        printf("%d:", n);
         fflush(stdout);
         sleep(1);
         close(sendfd);
-        close(fd);
     }
 
     return 0;
