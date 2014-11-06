@@ -118,32 +118,32 @@ void web(int fd, int hit)
 	      (void)lseek(file_fd, (off_t)0, SEEK_SET); /* lseek back to the file start ready for reading */
           (void)sprintf(buffer,"HTTP/1.1 200 OK\nServer: nweb/%d.0\nContent-Length: %ld\nConnection: close\nContent-Type: %s\n\n", VERSION, len, fstr); /* Header + a blank line */
 	logger(LOG,"Header",buffer,hit);
-//	(void)write(fd,buffer,strlen(buffer));
+	(void)write(fd,buffer,strlen(buffer));
 
-    write(fd, "Hello\n", 6);
+//    write(fd, "Hello\n", 6);
 
 	// /* send file in 8KB block - last block may be smaller */
 	// while (	(ret = read(file_fd, buffer, BUFSIZE)) > 0 ) {
 	// 	(void)write(fd,buffer,ret);
 	// }
 
-//   struct stat stat_buf;      /* argument to fstat */
-//    /* get the size of the file to be sent */
-//    fstat(file_fd, &stat_buf);
-//
-//    /* copy file using sendfile */
-//    off_t offset = 0;
-//    int rc = sendfile (fd, file_fd, &offset, stat_buf.st_size);
-//    if (rc == -1) {
-//      fprintf(stderr, "error from sendfile: %s\n", strerror(errno));
-//      exit(1);
-//    }
-//    if (rc != stat_buf.st_size) {
-//      fprintf(stderr, "incomplete transfer from sendfile: %d of %d bytes\n",
-//              rc,
-//              (int)stat_buf.st_size);
-//      exit(1);
-//    }
+   struct stat stat_buf;      /* argument to fstat */
+    /* get the size of the file to be sent */
+    fstat(file_fd, &stat_buf);
+
+    /* copy file using sendfile */
+    off_t offset = 0;
+    int rc = sendfile (fd, file_fd, &offset, stat_buf.st_size);
+    if (rc == -1) {
+      fprintf(stderr, "error from sendfile: %s\n", strerror(errno));
+      exit(1);
+    }
+    if (rc != stat_buf.st_size) {
+      fprintf(stderr, "incomplete transfer from sendfile: %d of %d bytes\n",
+              rc,
+              (int)stat_buf.st_size);
+      exit(1);
+    }
 
     /* close descriptor for file that was sent */
     close(file_fd);
@@ -152,7 +152,7 @@ void web(int fd, int hit)
 
 	sleep(1);	/* allow socket to drain before signalling the socket is closed */
 	close(fd);
-//	exit(1);
+	exit(1);
 }
 
 int main(int argc, char **argv)
@@ -211,36 +211,20 @@ int main(int argc, char **argv)
 		logger(ERROR,"system call","bind",0);
 	if( listen(listenfd,64) <0)
 		logger(ERROR,"system call","listen",0);
-    char buffer[BUFSIZE+1];
-    for(hit=1; ;hit++) {
+	for(hit=1; ;hit++) {
 		length = sizeof(cli_addr);
 		if((socketfd = accept(listenfd, (struct sockaddr *)&cli_addr, &length)) < 0)
 			logger(ERROR,"system call","accept",0);
-//		if((pid = fork()) < 0) {
-//			logger(ERROR,"system call","fork",0);
-//		}
-//		else {
-//			if(pid == 0) { 	/* child */
-//				(void)close(listenfd);
-//				web(socketfd,hit); /* never returns */
-//			} else { 	/* parent */
-//				(void)close(socketfd);
-//			}
-//		}
-
-        bzero(buffer, BUFSIZE+1);
-        int n = read(socketfd, buffer, BUFSIZE);
-        if (n <= 0)
-        {
-            perror("ERROR reading from socket");
-            exit(1);
-        }
-
-        n = write(socketfd, "Hello\n", 6);
-
-        printf("%d", n);
-        fflush(stdout);
-        sleep(1);
-        close(socketfd);
-    }
+		if((pid = fork()) < 0) {
+			logger(ERROR,"system call","fork",0);
+		}
+		else {
+			if(pid == 0) { 	/* child */
+				(void)close(listenfd);
+				web(socketfd,hit); /* never returns */
+			} else { 	/* parent */
+				(void)close(socketfd);
+			}
+		}
+	}
 }
