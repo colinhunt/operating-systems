@@ -2,13 +2,25 @@
 
 #include <unistd.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "request_handler.h"
 
 
-void handleConcurrently(int sendfd, struct sockaddr_in clientAddr, char logFileName[]) {
-    handleRequest(sendfd, clientAddr, logFileName);
+void handleConcurrently(int listenfd, int sendfd, struct sockaddr_in clientAddr, char logFileName[]) {
+    pid_t pid;
+    if ((pid = fork()) < 0) {
+        perror("Error forking");
+    } else {
+        if (pid == 0) { /* child */
+            close(listenfd);
 
-    fflush(stdout);
-    sleep(1);
-    close(sendfd);
+            handleRequest(sendfd, clientAddr, logFileName);
+
+            printf("\nChild %d exiting\n", getpid());
+            fflush(stdout);
+            sleep(1);
+            exit(EXIT_SUCCESS);
+        }
+        close(sendfd);
+    }
 }

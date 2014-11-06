@@ -3,6 +3,6 @@
 
 #include <netinet/in.h>
 
-void handleConcurrently(int sendfd, struct sockaddr_in clientAddr, char logFileName[]);
+void handleConcurrently(int listenfd, int sendfd, struct sockaddr_in clientAddr, char logFileName[]);
 
 #endif /* FORKED_HANDLER_H */

@@ -77,6 +77,6 @@ int main(int argc, char **argv) {
 
         // here we would call whatever concurrent handler with the sendfd
         //  which would then call the handleRequest func and cleanup after itself
-        handleConcurrently(sendfd, clientAddr, logFileName);
+        handleConcurrently(listenfd, sendfd, clientAddr, logFileName);
     }
 }
