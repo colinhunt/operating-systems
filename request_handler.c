@@ -10,15 +10,32 @@
 #include <sys/sendfile.h>
 #include <errno.h>
 
+#define BUFSIZE 512
+
+typedef struct {
+    int sendfd;
+    char clientIP[INET_ADDRSTRLEN];
+    char message[BUFSIZE];
+    const char* body;
+    const char* requestLine;
+    const char* logFileName;
+} Response;
 
 size_t formatedDate(char *dateBuf, size_t size);
+void sendHeader(int sendfd, char const *message, size_t lenBody);
+void logger(Response r);
+void sendTextBody(Response r);
+void sendNotFound(Response r);
+void sendBadRequest(Response r);
+void sendForbidden(Response r);
+void sendServerError(Response r);
+int blankLineTerminated(char buffer[], ssize_t n);
+
 
 size_t formatedDate(char *dateBuf, size_t size) {
     time_t timer = time(NULL);
     return strftime(dateBuf, size, "%a %d %b %Y %H:%M:%S %Z", gmtime(&timer));
 }
-
-void sendHeader(int sendfd, char const *message, size_t lenBody);
 
 void sendHeader(int sendfd, char const *message, size_t lenBody) {
     char header[BUFSIZE];
@@ -33,8 +50,6 @@ void sendHeader(int sendfd, char const *message, size_t lenBody) {
     write(sendfd, header, pos);
 }
 
-void logger(Response r);
-
 void logger(Response r) {
     FILE *fd;
     char date[BUFSIZE];
@@ -47,16 +62,12 @@ void logger(Response r) {
     }
 }
 
-void sendTextBody(Response r);
-
 void sendTextBody(Response r) {
     size_t lenBody = strlen(r.body);
     sendHeader(r.sendfd, r.message, lenBody);
     write(r.sendfd, r.body, lenBody);
     logger(r);
 }
-
-void sendNotFound(Response r);
 
 void sendNotFound(Response r) {
     perror("Not found!!!");
@@ -68,8 +79,6 @@ void sendNotFound(Response r) {
     sendTextBody(r);
 }
 
-void sendBadRequest(Response r);
-
 void sendBadRequest(Response r) {
     strncpy(r.message, "400 Bad Request", sizeof(r.message));
     r.body = "<html><body>\n"
@@ -78,8 +87,6 @@ void sendBadRequest(Response r) {
             "</body></html>\n";
     sendTextBody(r);
 }
-
-void sendForbidden(Response r);
 
 void sendForbidden(Response r) {
     strncpy(r.message, "403 Forbidden", sizeof(r.message));
@@ -90,8 +97,6 @@ void sendForbidden(Response r) {
     sendTextBody(r);
 }
 
-void sendServerError(Response r);
-
 void sendServerError(Response r) {
     strncpy(r.message, "500 Internal Server Error", sizeof(r.message));
     r.body = "<html><body>\n"
@@ -100,8 +105,6 @@ void sendServerError(Response r) {
             "</body></html>\n";
     sendTextBody(r);
 }
-
-int blankLineTerminated(char buffer[], ssize_t n);
 
 int blankLineTerminated(char buffer[], ssize_t n) {
     if (buffer[n - 1] != '\n') {
@@ -117,7 +120,6 @@ int blankLineTerminated(char buffer[], ssize_t n) {
 
     return 1;
 }
-
 
 void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFileName) {
     unsigned int i;
