@@ -18,15 +18,18 @@ size_t formatedDate(char *dateBuf, size_t size) {
     return strftime(dateBuf, size, "%a %d %b %Y %H:%M:%S %Z", gmtime(&timer));
 }
 
-int httpHeader(char *header, unsigned len) {
-    int pos = 0;
+void sendHeader(int sendfd, char message[], size_t lenBody) {
+    char header[BUFSIZE];
     char date[BUFSIZE];
+    int pos = 0;
     formatedDate(date, BUFSIZE);
-    pos += sprintf(header + pos, "HTTP/1.1 200 OK\n");
+    pos += sprintf(header + pos, "HTTP/1.1 %s\n", message);
     pos += sprintf(header + pos, "Date: %s\n", date);
     pos += sprintf(header + pos, "Content-Type: text/html\n");
-    pos += sprintf(header + pos, "Content-Length: %u\n\n", len);
-    return pos;
+    pos += sprintf(header + pos, "Content-Length: %u\n\n", lenBody);
+    int lenHeader = pos;
+    printf(header);
+    write(sendfd, header, lenHeader);
 }
 
 int main(int argc, char **argv) {
@@ -97,7 +100,6 @@ int main(int argc, char **argv) {
         if (n <= 0)
         {
             perror("ERROR reading from socket");
-            exit(1);
         }
 
         if (n < BUFSIZE) {
@@ -148,30 +150,32 @@ int main(int argc, char **argv) {
 
         printf(fileName);
 
-        if ((fd = open(fileName, O_RDONLY)) == -1) {
-            perror("Not found!!!");
-        }
-
-        struct stat stat_buf;
-        fstat(fd, &stat_buf);
+        if ((fd = open(fileName, O_RDONLY)) != -1) {
+            struct stat stat_buf;
+            fstat(fd, &stat_buf);
 
 //        printf("%ld\n", stat_buf.st_size);
-        char header[BUFSIZE];
+            sendHeader(sendfd, "200 OK", stat_buf.st_size);
 
-        int len = httpHeader(header, stat_buf.st_size);
-        printf(header);
-        n = write(sendfd, header, len);
+            /* copy file using sendfile */
+            off_t offset = 0;
+            int rc = sendfile(sendfd, fd, &offset, stat_buf.st_size);
+            if (rc == -1) {
+                perror("Error trying to send file");
+            } else {
+                printf("Success!!!\n");
+            }
 
-        /* copy file using sendfile */
-        off_t offset = 0;
-        int rc = sendfile(sendfd, fd, &offset, stat_buf.st_size);
-        if (rc == -1) {
-            perror("Error trying to send file");
         } else {
-            printf("Success!!!\n");
+            char notFoundBody[] = "<html><body>\n"
+                    "<h2>Document not found</h2>\n"
+                    "You asked for a document that doesn't exist. That is so sad.\n"
+                    "</body></html>";
+            perror("Not found!!!");
+            size_t lenBody = strlen(notFoundBody);
+            sendHeader(sendfd, "400 Bad Request", lenBody);
+            write(sendfd, notFoundBody, lenBody);
         }
-
-
 //        printf("%d:", n);
         fflush(stdout);
         sleep(1);
