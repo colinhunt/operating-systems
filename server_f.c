@@ -10,16 +10,17 @@
 #include <sys/sendfile.h>
 #include <time.h>
 #include <arpa/inet.h>
+#include <signal.h>
 
 static const unsigned BUFSIZE = 512;
 
 typedef struct {
-    char* clientIP;
     int sendfd;
-    char* message;
-    char* body;
-    char* requestLine;
-    char* logFileName;
+    const char* clientIP;
+    const char* message;
+    const char* body;
+    const char* requestLine;
+    const char* logFileName;
 } Response;
 
 
@@ -28,7 +29,7 @@ size_t formatedDate(char *dateBuf, size_t size) {
     return strftime(dateBuf, size, "%a %d %b %Y %H:%M:%S %Z", gmtime(&timer));
 }
 
-void sendHeader(int sendfd, char message[], size_t lenBody) {
+void sendHeader(int sendfd, char const *message, size_t lenBody) {
     char header[BUFSIZE];
     char date[BUFSIZE];
     size_t pos = 0;
@@ -36,7 +37,7 @@ void sendHeader(int sendfd, char message[], size_t lenBody) {
     pos += sprintf(header + pos, "HTTP/1.1 %s\n", message);
     pos += sprintf(header + pos, "Date: %s\n", date);
     pos += sprintf(header + pos, "Content-Type: text/html\n");
-    pos += sprintf(header + pos, "Content-Length: %u\n\n", lenBody);
+    pos += sprintf(header + pos, "Content-Length: %lu\n\n", lenBody);
     printf(header);
     write(sendfd, header, pos);
 }
@@ -112,12 +113,16 @@ int blankLineTerminated(char buffer[], ssize_t n) {
     return 1;
 }
 
-void handleRequest(int sendfd, char clientIP[], char *logFileName) {
+void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFileName) {
     unsigned int i;
     char buffer[BUFSIZE + 1];
     bzero(buffer, BUFSIZE + 1);
     ssize_t n = read(sendfd, buffer, BUFSIZE);
     Response response;
+
+    char clientIP[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &clientAddr.sin_addr, clientIP, INET_ADDRSTRLEN);
+
     response.clientIP = clientIP;
     response.sendfd = sendfd;
     response.logFileName = logFileName;
@@ -195,6 +200,11 @@ void handleRequest(int sendfd, char clientIP[], char *logFileName) {
             return sendServerError(response);
         } else {
             printf("Success!!!\n");
+            char message[BUFSIZE];
+            sprintf(message, "200 OK %li/%li", rc, stat_buf.st_size);
+            printf(message);
+            response.message = message;
+            logger(response);
         }
         close(fd);
 
@@ -213,7 +223,7 @@ int main(int argc, char **argv) {
     static struct sockaddr_in clientAddr;
     static struct sockaddr_in serverAddr;
 
-
+    signal(SIGPIPE, SIG_IGN);
 //    printf(header);
 //    fflush(stdout);
 
@@ -228,7 +238,10 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if ((fd = open(argv[3], O_CREAT, 0644)) != -1) {
+    char logFileName[strlen(argv[3]) + 1];
+    strncpy(logFileName, argv[3], strlen(argv[3]) + 1);
+
+    if ((fd = open(logFileName, O_CREAT, 0644)) != -1) {
         printf("%d\n", fd);
         close(fd);
     } else {
@@ -268,11 +281,9 @@ int main(int argc, char **argv) {
             exit(1);
         }
 
-        char clientIP[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &clientAddr.sin_addr, clientIP, INET_ADDRSTRLEN);
         // here we would call whatever concurrent handler with the sendfd
         //  which would then call the handleRequest func and cleanup after itself
-        handleRequest(sendfd, clientIP, argv[3]);
+        handleRequest(sendfd, clientAddr, logFileName);
 
         // we shouldn't have to do any of the below in this loop
         fflush(stdout);
