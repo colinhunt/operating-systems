@@ -19,6 +19,7 @@ typedef struct {
     char* message;
     char* body;
     char* requestLine;
+    char* logFileName;
 } Response;
 
 
@@ -40,11 +41,23 @@ void sendHeader(int sendfd, char message[], size_t lenBody) {
     write(sendfd, header, pos);
 }
 
+void logger(Response r) {
+    FILE *fd;
+    char date[BUFSIZE];
+    formatedDate(date, BUFSIZE);
+    if ((fd = fopen(r.logFileName, "a")) >= 0) {
+        int ret = fprintf(fd, "%s\t%s\t%s\t%s\n", date, r.clientIP, r.requestLine, r.message);
+        fclose(fd);
+    } else {
+        perror("Can't log!!");
+    }
+}
+
 void sendTextBody(Response r) {
     size_t lenBody = strlen(r.body);
     sendHeader(r.sendfd, r.message, lenBody);
     write(r.sendfd, r.body, lenBody);
-//    logger(r.clientIP, r.requestLine, r.message);
+    logger(r);
 }
 
 void sendNotFound(Response r) {
@@ -99,7 +112,7 @@ int blankLineTerminated(char buffer[], ssize_t n) {
     return 1;
 }
 
-void handleRequest(int sendfd, char clientIP[]) {
+void handleRequest(int sendfd, char clientIP[], char *logFileName) {
     unsigned int i;
     char buffer[BUFSIZE + 1];
     bzero(buffer, BUFSIZE + 1);
@@ -107,6 +120,8 @@ void handleRequest(int sendfd, char clientIP[]) {
     Response response;
     response.clientIP = clientIP;
     response.sendfd = sendfd;
+    response.logFileName = logFileName;
+    response.requestLine = "<malformed request>";
 
     if (n <= 0) {
         perror("ERROR reading from socket");
@@ -137,6 +152,11 @@ void handleRequest(int sendfd, char clientIP[]) {
         }
     }
 //        printf(buffer);
+    char reqLine[n + 1];
+    strncpy(reqLine, buffer, n);
+    reqLine[n] = 0;
+
+    response.requestLine = reqLine;
 
     unsigned fileNameStart = 5;
     if (strncmp(buffer, "GET /", fileNameStart) != 0 && strncmp(buffer, "get /", fileNameStart) != 0) {
@@ -152,11 +172,8 @@ void handleRequest(int sendfd, char clientIP[]) {
     }
 
     // now we know the line is formatted like "GET /(.*) HTTP/1.1"
-    char reqLine[n + 1];
     ssize_t fnLen = fileNameEnd - fileNameStart;
     char fileName[fnLen + 1];
-    strncpy(reqLine, buffer, n);
-    reqLine[n] = 0;
     strncpy(fileName, &buffer[fileNameStart], fnLen);
     fileName[fnLen] = 0;
 
@@ -255,7 +272,7 @@ int main(int argc, char **argv) {
         inet_ntop(AF_INET, &clientAddr.sin_addr, clientIP, INET_ADDRSTRLEN);
         // here we would call whatever concurrent handler with the sendfd
         //  which would then call the handleRequest func and cleanup after itself
-        handleRequest(sendfd, clientIP);
+        handleRequest(sendfd, clientIP, argv[3]);
 
         // we shouldn't have to do any of the below in this loop
         fflush(stdout);
