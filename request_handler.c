@@ -225,6 +225,11 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr,
 	/* Now we know the line is formatted like "GET /.* HTTP/1.1"
 	   So get the filename from the middle.	*/
 	fnLen = fileNameEnd - fileNameStart;
+
+	if (fnLen == 0) {
+		return sendBadRequest(response);
+	}
+
 	char fileName[fnLen + 1];
 	strncpy(fileName, &buffer[fileNameStart], fnLen);
 	fileName[fnLen] = 0;

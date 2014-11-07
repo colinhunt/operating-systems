@@ -35,11 +35,6 @@ int main(int argc, char **argv) {
 	socklen_t length;
 	static struct sockaddr_in clientAddr, serverAddr;
 
-	if (daemon(1, 0) == -1) {
-		perror("Error daemonizing");
-		exit(EXIT_FAILURE);
-	}
-
 	/* Don't terminate on broken pipes */
 	signal(SIGPIPE, SIG_IGN);
 
@@ -90,6 +85,12 @@ int main(int argc, char **argv) {
 
 	if (listen(listenfd, 200) < 0) {
 		perror("Error listening to socket");
+		exit(EXIT_FAILURE);
+	}
+
+	/* Disappear, into the night. */
+	if (daemon(1, 0) == -1) {
+		perror("Error daemonizing");
 		exit(EXIT_FAILURE);
 	}
 
