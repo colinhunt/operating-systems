@@ -1,3 +1,13 @@
+/* name:               Colin Hunt
+ * ONE Card number:    1222665
+ * Unix id:            colin
+ * lecture section:    A1
+ * instructor's name:  Mohammad Bhuiyan
+ * lab section:        D05
+
+Implements concurrent handling using fork().
+ */
+
 #include "concurrent_handler.h"
 
 #include <unistd.h>
@@ -5,6 +15,9 @@
 #include <stdlib.h>
 #include <signal.h>
 #include "request_handler.h"
+
+/* Register child handler to reap zombie processes */
+int setupChildHandler();
 
 int setupChildHandler() {
     static int set = 0;
@@ -19,8 +32,9 @@ int setupChildHandler() {
 }
 
 void handleConcurrently(int listenfd, int sendfd, struct sockaddr_in clientAddr, char logFileName[]) {
-    setupChildHandler();
     pid_t pid;
+
+    setupChildHandler();
     if ((pid = fork()) < 0) {
         perror("Error forking");
     } else {

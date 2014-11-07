@@ -1,3 +1,11 @@
+/* name:               Colin Hunt
+ * ONE Card number:    1222665
+ * Unix id:            colin
+ * lecture section:    A1
+ * instructor's name:  Mohammad Bhuiyan
+ * lab section:        D05
+ */
+
 #include "request_handler.h"
 
 #include <time.h>
@@ -47,6 +55,7 @@ void sendHeader(int sendfd, char const *message, size_t lenBody) {
     char header[BUFSIZE];
     char date[BUFSIZE];
     size_t pos = 0;
+
     formatedDate(date, BUFSIZE);
     pos += sprintf(header + pos, "HTTP/1.1 %s\n", message);
     pos += sprintf(header + pos, "Date: %s\n", date);
@@ -58,6 +67,7 @@ void sendHeader(int sendfd, char const *message, size_t lenBody) {
 void logger(Response r) {
     FILE *fd;
     char date[BUFSIZE];
+
     formatedDate(date, BUFSIZE);
     if ((fd = fopen(r.logFileName, "a")) >= 0) {
         /* fprintf call implicitly locks the stream. */
@@ -132,6 +142,9 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
     char buffer[BUFSIZE + 1];
     bzero(buffer, BUFSIZE + 1);
     Response response;
+    ssize_t n;
+    size_t fileNameStart, fileNameEnd, fnLen;
+    int fd;
 
     /* Parse the client IP address */
     inet_ntop(AF_INET, &clientAddr.sin_addr, response.clientIP, INET_ADDRSTRLEN);
@@ -141,7 +154,7 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
     response.requestLine = "<request not read>";
 
     /* Read in the request */
-    ssize_t n = read(sendfd, buffer, BUFSIZE);
+    n = read(sendfd, buffer, BUFSIZE);
     if (n < 0) {
         perror("ERROR reading from socket");
         return sendServerError(response);
@@ -182,13 +195,13 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
     response.requestLine = reqLine;
 
     /* Make sure it's a valid GET */
-    size_t fileNameStart = 5;
+    fileNameStart = 5;
     if (strncmp(buffer, "GET /", fileNameStart) != 0 && strncmp(buffer, "get /", fileNameStart) != 0) {
         return sendBadRequest(response);
     }
 
     /* check for HTTP/1.1 at the end */
-    size_t fileNameEnd = (size_t) (n - 9);
+    fileNameEnd = (size_t) (n - 9);
     if (strncmp(&buffer[fileNameEnd], " HTTP/1.1", 9) != 0) {
         return sendBadRequest(response);
     }
@@ -196,22 +209,24 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
     /* Now we know the line is formatted like "GET /.* HTTP/1.1"
        So get the filename from the middle.
      */
-    size_t fnLen = fileNameEnd - fileNameStart;
+    fnLen = fileNameEnd - fileNameStart;
     char fileName[fnLen + 1];
     strncpy(fileName, &buffer[fileNameStart], fnLen);
     fileName[fnLen] = 0;
 
     /* Send the file! */
-    int fd;
     if ((fd = open(fileName, O_RDONLY)) != -1) {
         struct stat stat_buf;
+        off_t offset;
+        ssize_t rc;
+
         fstat(fd, &stat_buf);
 
         sendHeader(sendfd, "200 OK", (size_t) stat_buf.st_size);
 
         /* copy file using sendfile */
-        off_t offset = 0;
-        ssize_t rc = sendfile(sendfd, fd, &offset, (size_t) stat_buf.st_size);
+        offset = 0;
+        rc = sendfile(sendfd, fd, &offset, (size_t) stat_buf.st_size);
         if (rc == -1) {
             close(fd);
             return sendServerError(response);
