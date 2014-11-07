@@ -20,32 +20,33 @@ Implements concurrent handling using fork().
 int setupChildHandler();
 
 int setupChildHandler() {
-    static int set = 0;
-    if (!set) {
-        if (signal(SIGCHLD, SIG_IGN) == SIG_ERR) {
-            perror("Error registering child handler");
-            exit(EXIT_FAILURE);
-        }
-        set = 1;
-    }
-    return 1;
+	static int set = 0;
+	if (!set) {
+		if (signal(SIGCHLD, SIG_IGN) == SIG_ERR) {
+			perror("Error registering child handler");
+			exit(EXIT_FAILURE);
+		}
+		set = 1;
+	}
+	return 1;
 }
 
-void handleConcurrently(int listenfd, int sendfd, struct sockaddr_in clientAddr, char logFileName[]) {
-    pid_t pid;
+void handleConcurrently(int listenfd, int sendfd, struct sockaddr_in clientAddr,
+		char logFileName[]) {
+	pid_t pid;
 
-    setupChildHandler();
-    if ((pid = fork()) < 0) {
-        perror("Error forking");
-    } else {
-        if (pid == 0) { /* child */
-            close(listenfd);
+	setupChildHandler();
+	if ((pid = fork()) < 0) {
+		perror("Error forking");
+	} else {
+		if (pid == 0) { /* child */
+			close(listenfd);
 
-            handleRequest(sendfd, clientAddr, logFileName);
+			handleRequest(sendfd, clientAddr, logFileName);
 
-            sleep(1);
-            exit(EXIT_SUCCESS);
-        }
-        close(sendfd);
-    }
+			sleep(1);
+			exit(EXIT_SUCCESS);
+		}
+		close(sendfd);
+	}
 }

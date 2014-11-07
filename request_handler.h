@@ -16,6 +16,7 @@ Request handling library.
 /* Handle a request by a client.
 * sendfd is the client socket.
 * Log information in logFileName. */
-void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFileName);
+void handleRequest(int sendfd, struct sockaddr_in clientAddr,
+		const char *logFileName);
 
 #endif /* REQUEST_HANDLER_H */

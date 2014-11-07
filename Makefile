@@ -44,4 +44,4 @@ clean:
 	rm -rf *.o server_* core *.out *.tar colin_hunt test
 
 linewidth:
-	-wc -L Makefile README *.c *.h
+	-wc -L Makefile *.c *.h
