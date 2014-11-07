@@ -12,6 +12,8 @@
 
 #define BUFSIZE 512
 
+/*** Begin private stuff ***/
+
 typedef struct {
     int sendfd;
     char clientIP[INET_ADDRSTRLEN];
@@ -21,6 +23,9 @@ typedef struct {
     const char* logFileName;
 } Response;
 
+/* Some private function prototypes.
+   Their names are self-explanatory.
+ */
 size_t formatedDate(char *dateBuf, size_t size);
 void sendHeader(int sendfd, char const *message, size_t lenBody);
 void logger(Response r);
@@ -31,6 +36,7 @@ void sendForbidden(Response r);
 void sendServerError(Response r);
 int blankLineTerminated(char buffer[], ssize_t n);
 
+/*** End private stuff ***/
 
 size_t formatedDate(char *dateBuf, size_t size) {
     time_t timer = time(NULL);
@@ -46,7 +52,6 @@ void sendHeader(int sendfd, char const *message, size_t lenBody) {
     pos += sprintf(header + pos, "Date: %s\n", date);
     pos += sprintf(header + pos, "Content-Type: text/html\n");
     pos += sprintf(header + pos, "Content-Length: %lu\n\n", lenBody);
-    printf(header);
     write(sendfd, header, pos);
 }
 
@@ -128,12 +133,14 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
     bzero(buffer, BUFSIZE + 1);
     Response response;
 
+    /* Parse the client IP address */
     inet_ntop(AF_INET, &clientAddr.sin_addr, response.clientIP, INET_ADDRSTRLEN);
 
     response.sendfd = sendfd;
     response.logFileName = logFileName;
-    response.requestLine = "<malformed request>";
+    response.requestLine = "<request not read>";
 
+    /* Read in the request */
     ssize_t n = read(sendfd, buffer, BUFSIZE);
     if (n < 0) {
         perror("ERROR reading from socket");
@@ -142,6 +149,7 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
         return sendBadRequest(response);
     }
 
+    /* Null terminate at the max buffer size */
     if (n < BUFSIZE) {
         buffer[n] = 0;
     } else {
@@ -151,9 +159,9 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
     if (!blankLineTerminated(buffer, n))
         return sendBadRequest(response);
 
-    // parse request, ensure valid, get filename
+    /* Parse the request line, validate, and get filename */
 
-    // terminate after the first newline
+    /* Terminate after the first newline */
     for (i = 0; i < n; i++) {
         if (buffer[i] == '\n') {
             buffer[i] = 0;
@@ -165,40 +173,40 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
             break;
         }
     }
-//        printf(buffer);
+
+    /* Get the request line */
     char reqLine[n + 1];
     strncpy(reqLine, buffer, (size_t) n);
     reqLine[n] = 0;
 
     response.requestLine = reqLine;
 
+    /* Make sure it's a valid GET */
     size_t fileNameStart = 5;
     if (strncmp(buffer, "GET /", fileNameStart) != 0 && strncmp(buffer, "get /", fileNameStart) != 0) {
-        printf("Invalid request, not a GET.\n");
         return sendBadRequest(response);
     }
 
-    // check for HTTP/1.1 at the end
+    /* check for HTTP/1.1 at the end */
     size_t fileNameEnd = (size_t) (n - 9);
-    if (strncmp(&buffer[fileNameEnd], " HTTP/1.0", 9) != 0) {
-        printf("Invalid request, not HTTP/1.1.");
+    if (strncmp(&buffer[fileNameEnd], " HTTP/1.1", 9) != 0) {
         return sendBadRequest(response);
     }
 
-    // now we know the line is formatted like "GET /(.*) HTTP/1.1"
+    /* Now we know the line is formatted like "GET /.* HTTP/1.1"
+       So get the filename from the middle.
+     */
     size_t fnLen = fileNameEnd - fileNameStart;
     char fileName[fnLen + 1];
     strncpy(fileName, &buffer[fileNameStart], fnLen);
     fileName[fnLen] = 0;
 
-    printf(fileName);
-
+    /* Send the file! */
     int fd;
     if ((fd = open(fileName, O_RDONLY)) != -1) {
         struct stat stat_buf;
         fstat(fd, &stat_buf);
 
-//        printf("%ld\n", stat_buf.st_size);
         sendHeader(sendfd, "200 OK", (size_t) stat_buf.st_size);
 
         /* copy file using sendfile */
@@ -208,9 +216,7 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
             close(fd);
             return sendServerError(response);
         } else {
-            printf("Success!!!\n");
             sprintf(response.message, "200 OK %li/%li", rc, stat_buf.st_size);
-            printf(response.message);
             logger(response);
         }
         close(fd);

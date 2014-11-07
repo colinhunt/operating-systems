@@ -16,8 +16,10 @@ CFLAGS = -Wall
 LDLIBS = -lm -lpthread
 
 # regular variables used
-submit = submit_server_f.tar
+submit = submit_server.tar
 object_files = request_handler.o server.o
+
+all: server_f server_p
 
 server_f: $(object_files) forked_handler.o
 	$(CC) -o server_f $(object_files) forked_handler.o -lpthread -Wall
@@ -34,10 +36,12 @@ threaded_handler.o: threaded_handler.c concurrent_handler.h request_handler.h
 request_handler.o: request_handler.c request_handler.h
 
 tar:
-	tar cvf $(submit) *.c *.h Makefile README
+	mkdir colin_hunt
+	cp *.c *.h Makefile colin_hunt
+	tar cvf $(submit) colin_hunt
 
 clean:
-	-rm -f *.o server_* core *.out
+	rm -rf *.o server_* core *.out *.tar colin_hunt test
 
 linewidth:
 	-wc -L Makefile README *.c *.h

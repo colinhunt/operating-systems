@@ -29,8 +29,6 @@ void handleConcurrently(int listenfd, int sendfd, struct sockaddr_in clientAddr,
 
             handleRequest(sendfd, clientAddr, logFileName);
 
-            printf("\nChild %d exiting\n", getpid());
-            fflush(stdout);
             sleep(1);
             exit(EXIT_SUCCESS);
         }

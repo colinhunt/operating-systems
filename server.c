@@ -18,14 +18,12 @@ int main(int argc, char **argv) {
     static struct sockaddr_in clientAddr;
     static struct sockaddr_in serverAddr;
 
-//    if (daemon(1, 1) == -1) {
-//        perror("Error daemonizing");
-//        exit(EXIT_FAILURE);
-//    }
+    if (daemon(1, 0) == -1) {
+        perror("Error daemonizing");
+        exit(EXIT_FAILURE);
+    }
 
     signal(SIGPIPE, SIG_IGN);
-//    printf(header);
-//    fflush(stdout);
 
     if (argc < 4 || argc > 4) {
         printf("Usage:\n");
@@ -80,8 +78,6 @@ int main(int argc, char **argv) {
             exit(1);
         }
 
-        // here we would call whatever concurrent handler with the sendfd
-        //  which would then call the handleRequest func and cleanup after itself
         handleConcurrently(listenfd, sendfd, clientAddr, logFileName);
     }
 }
