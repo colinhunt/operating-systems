@@ -55,6 +55,7 @@ void logger(Response r) {
     char date[BUFSIZE];
     formatedDate(date, BUFSIZE);
     if ((fd = fopen(r.logFileName, "a")) >= 0) {
+        /* fprintf call implicitly locks the stream. */
         fprintf(fd, "%s\t%s\t%s\t%s\n", date, r.clientIP, r.requestLine, r.message);
         fclose(fd);
     } else {
@@ -125,7 +126,6 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
     unsigned int i;
     char buffer[BUFSIZE + 1];
     bzero(buffer, BUFSIZE + 1);
-    ssize_t n = read(sendfd, buffer, BUFSIZE);
     Response response;
 
     inet_ntop(AF_INET, &clientAddr.sin_addr, response.clientIP, INET_ADDRSTRLEN);
@@ -134,6 +134,7 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
     response.logFileName = logFileName;
     response.requestLine = "<malformed request>";
 
+    ssize_t n = read(sendfd, buffer, BUFSIZE);
     if (n < 0) {
         perror("ERROR reading from socket");
         return sendServerError(response);

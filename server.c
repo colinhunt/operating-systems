@@ -9,12 +9,19 @@
 #include <arpa/inet.h>
 #include <signal.h>
 
+#include "concurrent_handler.h"
 
-int startServer(int argc, char **argv, void (*handleConcurrently)(int, int, struct sockaddr_in, char[])) {
+
+int main(int argc, char **argv) {
     int fd, port, listenfd, sendfd, optval;
     socklen_t length;
     static struct sockaddr_in clientAddr;
     static struct sockaddr_in serverAddr;
+
+//    if (daemon(1, 1) == -1) {
+//        perror("Error daemonizing");
+//        exit(EXIT_FAILURE);
+//    }
 
     signal(SIGPIPE, SIG_IGN);
 //    printf(header);
