@@ -179,7 +179,7 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
 
     // check for HTTP/1.1 at the end
     size_t fileNameEnd = (size_t) (n - 9);
-    if (strncmp(&buffer[fileNameEnd], " HTTP/1.1", 9) != 0) {
+    if (strncmp(&buffer[fileNameEnd], " HTTP/1.0", 9) != 0) {
         printf("Invalid request, not HTTP/1.1.");
         return sendBadRequest(response);
     }
