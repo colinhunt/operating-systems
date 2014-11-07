@@ -134,9 +134,11 @@ void handleRequest(int sendfd, struct sockaddr_in clientAddr, const char *logFil
     response.logFileName = logFileName;
     response.requestLine = "<malformed request>";
 
-    if (n <= 0) {
+    if (n < 0) {
         perror("ERROR reading from socket");
         return sendServerError(response);
+    } else if (n == 0) {
+        return sendBadRequest(response);
     }
 
     if (n < BUFSIZE) {
