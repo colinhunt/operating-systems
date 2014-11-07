@@ -13,22 +13,31 @@
 # built-in variables
 CC = gcc
 CFLAGS = -Wall
-LDLIBS = -lm
+LDLIBS = -lm -lpthread
 
 # regular variables used
-executable = server_f
 submit = submit_server_f.tar
+object_files = request_handler.o server.o
 
+server_f: $(object_files) forked_handler.o
+	$(CC) -o server_f $(object_files) forked_handler.o -lpthread -Wall
 
-$(executable): $(executable).o
+server_p: $(object_files) threaded_handler.o
+	$(CC) -o server_p $(object_files) threaded_handler.o -lpthread -Wall
 
-$(executable).o: $(executable).c
+server.o: server.c
+
+forked_handler.o: forked_handler.c concurrent_handler.h request_handler.h
+
+threaded_handler.o: threaded_handler.c concurrent_handler.h request_handler.h
+
+request_handler.o: request_handler.c request_handler.h
 
 tar:
 	tar cvf $(submit) *.c *.h Makefile README
 
 clean:
-	-rm -f *.o $(executable) core *.out
+	-rm -f *.o server_* core *.out
 
 linewidth:
 	-wc -L Makefile README *.c *.h

@@ -42,7 +42,6 @@ int main(int argc, char **argv) {
     strncpy(logFileName, argv[3], strlen(argv[3]) + 1);
 
     if ((fd = open(logFileName, O_CREAT, 0644)) != -1) {
-        printf("%d\n", fd);
         close(fd);
     } else {
         perror("Error trying to create/access log file");
